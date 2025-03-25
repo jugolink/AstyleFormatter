@@ -2,6 +2,9 @@
 
 This is a tool that adds Windows right-click menu options for the Astyle code formatter, allowing you to easily format single files or entire directories (recursively) with a single click.
 
+## Astyle Version 
+- 3.6.7-x64
+
 ## Features
 
 - One-click formatting for single files or entire directories (recursive)
