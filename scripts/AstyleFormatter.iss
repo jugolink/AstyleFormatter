@@ -1,8 +1,9 @@
 #define MyAppName "AstyleFormatter"
-#define MyAppVersion "1.0.0"
-#define MyAppVersionFull "1.0.0"
+#define MyAppVersion "1.0.1"
+#define MyAppVersionFull "1.0.1"
 #define MyAppPublisher "Evek"
-#define MyAppExeName "astyle-3.6.7-x64.exe"
+#define MyAppExeName "astyle.exe"
+#define MyAppIcon "astyle_formatter.ico"  ; 图标文件名
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId in installers for other applications.
@@ -31,25 +32,26 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Files]
-Source: "..\astyle.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "AstyleRightClickFormatter.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\README_Astyle_Formatter.md"; DestDir: "{app}\"; Flags: ignoreversion
 Source: "..\README_Astyle_Formatter_CN.md"; DestDir: "{app}\"; Flags: ignoreversion
+Source: "..\astyle_formatter.ico"; DestDir: "{app}\"; Flags: ignoreversion
 
 [Registry]
 ; Register for files
 Root: HKCR; Subkey: "*\shell\AstyleFormat"; ValueType: string; ValueName: ""; ValueData: "Format with Astyle"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "*\shell\AstyleFormat"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "*\shell\AstyleFormat"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppIcon}"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "*\shell\AstyleFormat\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\AstyleRightClickFormatter.ps1"" -Format ""%1"""; Flags: uninsdeletekey
 
 ; Register for directories
 Root: HKCR; Subkey: "Directory\shell\AstyleFormat"; ValueType: string; ValueName: ""; ValueData: "Format with Astyle"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "Directory\shell\AstyleFormat"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Directory\shell\AstyleFormat"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppIcon}"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "Directory\shell\AstyleFormat\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\AstyleRightClickFormatter.ps1"" -Format ""%1"""; Flags: uninsdeletekey
 
 ; Register cleanup option for directories
 Root: HKCR; Subkey: "Directory\shell\AstyleClean"; ValueType: string; ValueName: ""; ValueData: "Clean Astyle Backup Files"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "Directory\shell\AstyleClean"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Directory\shell\AstyleClean"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppIcon}"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "Directory\shell\AstyleClean\command"; ValueType: string; ValueName: ""; ValueData: "powershell.exe -ExecutionPolicy Bypass -File ""{app}\scripts\AstyleRightClickFormatter.ps1"" -Clean -Format ""%1"""; Flags: uninsdeletekey
 
 [UninstallDelete]

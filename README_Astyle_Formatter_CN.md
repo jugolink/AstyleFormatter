@@ -1,9 +1,9 @@
 # Astyle 右键菜单格式化工具
 
-这是一个为 Astyle 代码格式化工具添加 Windows 右键菜单选项的工具，让您可以一键格式化单个文件或整个目录（递归）。
+Astyle是一个免费、高效的用于格式化C, C++, C++/CLI, Objective-C, C#, and Java 等源代码文件的自动格式化工具。本项目是借助 `Astyle.exe`并结合`Powershell脚本`来实现通过 Windows 右键菜单选项对代码文件进行格式化，让你可以一键格式化单个文件或整个目录（递归），并在需要的时候自定义移除Astyle自动生成的orig文件。
 
 ## Astyle版本
-- 3.6.7-x64
+- [3.6.9-x64](https://gitlab.com/saalen/astyle/-/releases)
 
 ## 功能特点
 
@@ -42,7 +42,7 @@
 
 ## 自定义格式化配置
 
-您可以通过编辑 PowerShell 脚本中的 `$formatConfigs` 哈希表来自定义不同文件扩展名的格式化参数。
+你可以通过编辑 PowerShell 脚本中的 `$formatConfigs` 哈希表来自定义不同文件扩展名的格式化参数。
 
 默认配置：
 
@@ -134,16 +134,205 @@
 - 例如，格式化 `example.cpp` 后，原始文件将备份为 `example.cpp.orig`
 - 如果备份文件已存在，Astyle 不会覆盖它
 
+## 关于AstyleRightClickFormatter.ps1
+
+### 脚本功能
+
+- `-Format <path>`：格式化指定的文件或目录。
+- `-Clean`：清理指定路径下的 .orig 备份文件。
+- `-Register` / `-Unregister`：用于注册/取消注册右键菜单（当前由安装程序处理，脚本仅提示）。
+
+
+
+### 脚本结构分析
+
+#### 参数处理
+
+```powershell
+param (
+    [string]$Format,
+    [switch]$Register,
+    [switch]$Unregister,
+    [switch]$Clean
+)
+```
+
+**参数说明**：
+
+- $Format：字符串参数，指定要格式化的文件或目录路径。
+- $Register / $Unregister：开关参数，用于注册/取消注册右键菜单（但实际逻辑提示由安装程序处理）。
+- $Clean：开关参数，用于清理 .orig 备份文件。
+
+**特点**：使用 PowerShell 的 param 块清晰定义参数，支持命令行调用（如 .\AstyleRightClickFormatter.ps1 -Format "C:\Code" -Clean）。
+
+#### 配置参数
+
+```powershell
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$astylePath = Join-Path -Path (Split-Path -Parent $scriptPath) -ChildPath "astyle.exe"
+```
+
+**AStyle 路径**：动态计算 AStyle 可执行文件的路径，假设 astyle.exe 位于脚本的上级目录。
+
+**格式化配置**：
+
+```powershell
+$formatConfigs = @{    ".c"    = "--style=allman ...";    ".cpp"  = "--style=allman ...";    ... }
+```
+
+- 使用哈希表存储不同文件扩展名对应的 AStyle 格式化参数。
+- 支持的扩展名包括：.c、.cpp、.h、.hpp（C/C++）、.cs（C#）、.java（Java）、.py（Python）、.js（JavaScript）。
+- 每个扩展名对应一组 AStyle 参数（如 --style=allman 表示 Allman 风格，--indent=spaces=4 表示 4 空格缩进等）。
+
+#### 核心函数
+
+脚本定义了三个主要函数：
+
+1. Format-SingleFile : 格式化单个文件。
+
+   ```powershell
+   function Format-SingleFile {
+       param ([string]$FilePath)
+       $extension = [System.IO.Path]::GetExtension($FilePath).ToLower()
+       if ($formatConfigs.ContainsKey($extension)) {
+           $formatParams = $formatConfigs[$extension]
+           $cmd = "& '$astylePath' $formatParams '$FilePath'"
+           Invoke-Expression $cmd
+           return $true
+       } else {
+           Write-Host "Unsupported file type: $extension, skipping file: $FilePath" -ForegroundColor Yellow
+           return $false
+       }
+   }
+   ```
+
+   **逻辑**：
+
+   - 获取文件扩展名并检查是否在 $formatConfigs 中。
+
+   - 如果支持，使用对应的 AStyle 参数执行格式化命令。
+   - 成功返回 $true，否则返回 $false 并输出提示。
+
+   **特点**：通过 Invoke-Expression 执行动态构建的命令，灵活但需注意安全性。
+
+2. Format-Directory：递归格式化目录中的文件。
+
+   ```powershell
+   function Format-Directory {
+       param ([string]$DirectoryPath)
+       $files = Get-ChildItem -Path $DirectoryPath -Recurse -File
+       $formattedCount = 0
+       $totalCount = 0
+       $skippedFiles = @()
+       foreach ($file in $files) {
+           if ($formatConfigs.ContainsKey($file.Extension.ToLower())) {
+               $totalCount++
+               if (Format-SingleFile -FilePath $file.FullName) {
+                   $formattedCount++
+               } else {
+                   $skippedFiles += $file.Name
+               }
+           }
+       }
+       Write-Host "Directory formatting complete: $DirectoryPath" -ForegroundColor Green
+       ...
+   }
+   ```
+
+   - **逻辑**：
+     - 使用 Get-ChildItem -Recurse 遍历目录中的所有文件。
+     - 对支持的扩展名调用 Format-SingleFile。
+     - 统计格式化成功的文件数、总文件数，并记录跳过的文件。
+     - 输出详细的格式化总结。
+   - **特点**：支持递归处理，适合批量格式化。
+
+3. Clean-OrigFiles：清理 .orig 备份文件。
+
+   ```powershell
+   function Clean-OrigFiles {
+       param ([string]$Path)
+       if (Test-Path -Path $Path -PathType Leaf) {
+           if ($Path.EndsWith('.orig', [StringComparison]::OrdinalIgnoreCase)) {
+               Remove-Item -Path $Path -Force
+           }
+       } else {
+           $origFiles = Get-ChildItem -Path $Path -Recurse -Filter "*.orig"
+           foreach ($file in $origFiles) {
+               Remove-Item -Path $file.FullName -Force
+           }
+       }
+   }
+   ```
+
+   - **逻辑**：
+     - 如果路径是文件，仅删除以 .orig 结尾的文件。
+     - 如果路径是目录，递归查找并删除所有 .orig 文件。
+     - 输出删除的文件数和路径。
+   - **特点**：简单高效，适合清理 AStyle 生成的备份文件。
+
+
+
+#### 主程序逻辑
+
+```powershell
+if (-not (Test-Path -Path $astylePath)) {
+    Write-Host "Error: Astyle executable not found: $astylePath" -ForegroundColor Red
+    exit 1
+}
+if ($Register) { ... } # 提示使用安装程序
+if ($Unregister) { ... } # 提示使用安装程序
+if ($Clean) {
+    Clean-OrigFiles -Path $Format
+}
+if ($Format) {
+    if (Test-Path -Path $Format -PathType Leaf) {
+        Format-SingleFile -FilePath $Format
+    } else {
+        Format-Directory -DirectoryPath $Format
+    }
+}
+```
+
+**逻辑**：
+
+- 首先检查 astyle.exe 是否存在。
+- 根据参数执行相应操作：
+  - $Register / $Unregister：提示使用安装程序。
+  - $Clean：调用 Clean-OrigFiles。
+  - $Format：根据路径是文件还是目录，分别调用 Format-SingleFile 或 Format-Directory。
+- 如果没有参数，显示帮助信息。
+
+**特点**：
+
+- 使用 Test-Path 检查路径有效性。
+- 通过 Write-Host 提供丰富的彩色输出，便于用户了解操作进展。
+- 在操作完成后等待用户按键退出，适合右键菜单的交互场景。
+
+
+
+#### 帮助信息
+
+如果没有提供参数，脚本会显示使用说明、支持的文件类型和注意事项：
+
+```powershell
+Write-Host "Astyle Right-Click Menu Formatting Tool" -ForegroundColor Cyan
+Write-Host "Usage: Right-click on any file or directory and select 'Format with Astyle'"
+Write-Host "Supported file types: $($formatConfigs.Keys -join ', ')"
+```
+
+
+
 ## 常见问题
 
 **问：为什么安装需要管理员权限？**  
 答：添加右键菜单项需要修改注册表，这需要管理员权限。
 
-**问：如果我不喜欢格式化后的效果怎么办？**  
-答：您可以编辑脚本中的格式化参数以匹配您的偏好。例如，如果您更喜欢 Java 风格的括号，可以将 `--style=allman` 改为 `--style=java`。
+**问：如果不喜欢格式化后的效果怎么办？**  
+答：可以编辑脚本中的格式化参数以匹配个人的偏好。例如，如果你更喜欢 Java 风格的括号，可以将 `--style=allman` 改为 `--style=java`。
 
 **问：如何防止 Astyle 格式化某些文件或代码块？**  
-答：您可以在代码中添加特殊注释来禁用格式化：
+答：可以在代码中添加特殊注释来禁用格式化：
+
 - 禁用代码块：使用 `/*INDENT-OFF*/` 和 `/*INDENT-ON*/` 注释
 - 禁用单行：在行尾添加 `/*NOPAD*/` 注释
 
@@ -151,10 +340,15 @@
 答：编辑脚本中的 `$formatConfigs` 哈希表，添加新的文件扩展名和对应的格式化参数。
 
 **问：如何更改缩进大小？**  
-答：修改所需文件类型配置中的 `--indent=spaces=4` 参数，将数字改为您喜欢的缩进大小。
+答：修改所需文件类型配置中的 `--indent=spaces=4` 参数，将数字改为期望的缩进大小。
 
 ## Astyle 参数参考
 
 更多格式化选项，请参考 Astyle 官方文档：
 - 运行 `astyle --help` 查看所有可用选项
 - 访问 [Astyle 官方网站](http://astyle.sourceforge.net/) 获取详细文档 
+
+
+
+
+
